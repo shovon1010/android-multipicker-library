@@ -1,14 +1,15 @@
 apply plugin: 'com.android.library'
-apply plugin: 'maven'
+//apply plugin: 'maven'
+apply plugin: 'com.github.dcendents.android-maven'
 apply plugin: 'signing'
 
 version = "1.3"
-group = "com.kbeanie"
+group = "com.github.deinlandel"
 
-//def sonatypeRepo = ""
-//def sonatypeUsername = ""
-//def sonatypePassword = ""
-//def scmUrl = ""
+def sonatypeRepo = ""
+def sonatypeUsername = ""
+def sonatypePassword = ""
+def scmUrl = ""
 
 signing {
     required {
@@ -18,7 +19,7 @@ signing {
     sign configurations.archives
 }
 
-uploadArchives {
+/*uploadArchives {
     configuration = configurations.archives
     repositories.mavenDeployer {
         beforeDeployment {
@@ -63,7 +64,7 @@ uploadArchives {
             }
         }
     }
-}
+}*/
 
 android {
     signingConfigs {
