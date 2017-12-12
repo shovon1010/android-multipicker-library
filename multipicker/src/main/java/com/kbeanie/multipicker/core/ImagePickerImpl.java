@@ -37,6 +37,7 @@ public abstract class ImagePickerImpl extends PickerManager {
     private int quality = 100;
     private int maxWidth = -1;
     private int maxHeight = -1;
+    private boolean rotateBitmap = false;
 
     protected ImagePickerCallback callback;
 
@@ -71,6 +72,15 @@ public abstract class ImagePickerImpl extends PickerManager {
      */
     public void shouldGenerateThumbnails(boolean generateThumbnails) {
         this.generateThumbnails = generateThumbnails;
+    }
+
+    /**
+     * Rotate actual bitmap according to orientation. Default value is {@link Boolean#FALSE}
+     *
+     * @param rotateBitmap
+     */
+    public void shouldRotateBitmap(boolean rotateBitmap) {
+        this.rotateBitmap = rotateBitmap;
     }
 
     /**
@@ -255,6 +265,7 @@ public abstract class ImagePickerImpl extends PickerManager {
         thread.setRequestId(requestId);
         thread.setShouldGenerateThumbnails(generateThumbnails);
         thread.setShouldGenerateMetadata(generateMetadata);
+        thread.setShouldRotateBitmap(rotateBitmap);
         thread.setOutputImageQuality(quality);
         thread.setImagePickerCallback(callback);
         thread.start();

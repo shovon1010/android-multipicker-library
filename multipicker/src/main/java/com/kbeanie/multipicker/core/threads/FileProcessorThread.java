@@ -620,7 +620,7 @@ public class FileProcessorThread extends Thread {
         this.callback = callback;
     }
 
-    protected ChosenImage ensureMaxWidthAndHeight(int maxWidth, int maxHeight, int quality, ChosenImage image) {
+    protected ChosenImage ensureMaxWidthAndHeight(int maxWidth, int maxHeight, int quality, ChosenImage image, boolean shouldRotateBitmap) {
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = true;
@@ -654,13 +654,14 @@ public class FileProcessorThread extends Thread {
 
                     Matrix matrix = new Matrix();
                     matrix.postScale((float) scaledDimension[0] / imageWidth, (float) scaledDimension[1] / imageHeight);
+                    if (shouldRotateBitmap) matrix.postRotate(getRotateAngle(originalExifInterface));
 
                     bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(),
                             bitmap.getHeight(), matrix, false);
                     bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream);
                     image.setOriginalPath(file.getAbsolutePath());
                     ExifInterface resizedExifInterface = new ExifInterface(file.getAbsolutePath());
-                    resizedExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, originalRotation);
+                    if (!shouldRotateBitmap) resizedExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, originalRotation);
                     resizedExifInterface.saveAttributes();
                     image.setWidth(scaledDimension[0]);
                     image.setHeight(scaledDimension[1]);
@@ -695,21 +696,7 @@ public class FileProcessorThread extends Thread {
 
             ExifInterface exif = new ExifInterface(image);
 
-            int orientation = exif.getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL);
-            int rotate = 0;
-            switch (orientation) {
-                case ExifInterface.ORIENTATION_ROTATE_270:
-                    rotate = -90;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_180:
-                    rotate = 180;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_90:
-                    rotate = 90;
-                    break;
-            }
+            int rotate = getRotateAngle(exif);
 
             int what = w > l ? w : l;
 
@@ -762,6 +749,25 @@ public class FileProcessorThread extends Thread {
         }
 
         return null;
+    }
+
+    private int getRotateAngle(ExifInterface exif) {
+        int orientation = exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL);
+        int rotate = 0;
+        switch (orientation) {
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                rotate = -90;
+                break;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+                rotate = 180;
+                break;
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                rotate = 90;
+                break;
+        }
+        return rotate;
     }
 
     protected String getWidthOfImage(String path) {
