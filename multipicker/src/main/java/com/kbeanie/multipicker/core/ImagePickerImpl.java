@@ -8,8 +8,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.support.v4.app.Fragment;
-import android.support.v4.content.FileProvider;
+import androidx.fragment.app.Fragment;
+import androidx.core.content.FileProvider;
 
 import com.kbeanie.multipicker.api.CacheLocation;
 import com.kbeanie.multipicker.api.CameraImagePicker;
@@ -37,7 +37,6 @@ public abstract class ImagePickerImpl extends PickerManager {
     private int quality = 100;
     private int maxWidth = -1;
     private int maxHeight = -1;
-    private boolean rotateBitmap = false;
 
     protected ImagePickerCallback callback;
 
@@ -72,17 +71,6 @@ public abstract class ImagePickerImpl extends PickerManager {
      */
     public void shouldGenerateThumbnails(boolean generateThumbnails) {
         this.generateThumbnails = generateThumbnails;
-    }
-
-    /**
-     * Rotate actual bitmap according to orientation. Default value is {@link Boolean#FALSE}
-     *
-     * WARNING: this will cause image to be re-compressed with quality specified in {@link  ImagePickerImpl#setQuality}
-     *
-     * @param rotateBitmap
-     */
-    public void shouldRotateBitmap(boolean rotateBitmap) {
-        this.rotateBitmap = rotateBitmap;
     }
 
     /**
@@ -267,7 +255,6 @@ public abstract class ImagePickerImpl extends PickerManager {
         thread.setRequestId(requestId);
         thread.setShouldGenerateThumbnails(generateThumbnails);
         thread.setShouldGenerateMetadata(generateMetadata);
-        thread.setShouldRotateBitmap(rotateBitmap);
         thread.setOutputImageQuality(quality);
         thread.setImagePickerCallback(callback);
         thread.start();

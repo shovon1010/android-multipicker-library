@@ -125,13 +125,9 @@ public class FileProcessorThread extends Thread {
 
     private void postProcess(ChosenFile file) throws PickerException {
         file.setCreatedAt(Calendar.getInstance().getTime());
-        recalculateSize(file);
-        copyFileToFolder(file);
-    }
-
-    protected static void recalculateSize(ChosenFile file) {
         File f = new File(file.getOriginalPath());
         file.setSize(f.length());
+        copyFileToFolder(file);
     }
 
     private void copyFileToFolder(ChosenFile file) throws PickerException {
@@ -163,7 +159,7 @@ public class FileProcessorThread extends Thread {
 
     private void processFile(ChosenFile file) throws PickerException {
         String uri = file.getQueryUri();
-        LogUtils.d(TAG, "processFile: uri" + uri);
+        LogUtils.d(TAG, "processFile: uri"+ uri);
         if (uri.startsWith("file://") || uri.startsWith("/")) {
             file = sanitizeUri(file);
             file.setDisplayName(Uri.parse(file.getOriginalPath()).getLastPathSegment());
@@ -280,8 +276,6 @@ public class FileProcessorThread extends Thread {
             }
         } catch (IOException e) {
             throw new PickerException(e);
-        } catch (Exception e) {
-            throw new PickerException(e.getLocalizedMessage());
         } finally {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                 close(parcelFileDescriptor);
@@ -299,10 +293,8 @@ public class FileProcessorThread extends Thread {
         String[] projection = {MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.MIME_TYPE};
 
         // Workaround for various implementations for Google Photos/Picasa
-        if (file.getQueryUri().startsWith(
-                "content://com.android.gallery3d.provider")) {
-            file.setOriginalPath(Uri.parse(file.getQueryUri().replace(
-                    "com.android.gallery3d", "com.google.android.gallery3d")).toString());
+        if (file.getQueryUri().startsWith("content://com.android.gallery3d.provider")) {
+            file.setOriginalPath(Uri.parse(file.getQueryUri().replace("com.android.gallery3d", "com.google.android.gallery3d")).toString());
         } else {
             file.setOriginalPath(file.getQueryUri());
         }
@@ -344,16 +336,27 @@ public class FileProcessorThread extends Thread {
             }
         }
 
-        // Check if DownloadsDocument in which case, we can get the local copy by using the content provider
-        if (file.getOriginalPath().startsWith("content:") && isDownloadsDocument(Uri.parse(file.getOriginalPath()))) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                String[] data = getPathAndMimeType(file);
-                if (data[0] != null) {
-                    file.setOriginalPath(data[0]);
+        if (!TextUtils.isEmpty(Uri.parse(file.getOriginalPath()).toString())) {
+            try {
+                if (!file.getQueryUri().contains("raw%")) {
+
+                    // Check if DownloadsDocument in which case, we can get the local copy by using the content provider
+                    if (file.getOriginalPath().startsWith("content:") && isDownloadsDocument(Uri.parse(file.getOriginalPath()))) {
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                            String[] data = getPathAndMimeType(file);
+                            if (data[0] != null) {
+                                file.setOriginalPath(data[0]);
+                            }
+                            if (data[1] != null) {
+                                file.setMimeType(data[1]);
+                            }
+                        }
+                    }
+
                 }
-                if (data[1] != null) {
-                    file.setMimeType(data[1]);
-                }
+            } catch (Exception e){
+                e.printStackTrace();
             }
         }
 
@@ -370,38 +373,11 @@ public class FileProcessorThread extends Thread {
             // ExternalStorageProvider
             if (isDownloadsDocument(uri)) {
                 final String id = DocumentsContract.getDocumentId(uri);
-                if (id.startsWith("raw:")) {
-                    String[] data = new String[2];
-                    data[0] = id.replaceFirst("raw:", "");
-                    data[1] = null;
-                    return data;
-                }
-                Uri contentUri = uri;
+                final Uri contentUri = ContentUris.withAppendedId(
+                        Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
 
-                String[] contentUriPrefixesToTry = new String[]{
-                        "content://downloads/public_downloads",
-                        "content://downloads/my_downloads"
-                };
-
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-
-                    for (String contentUriPrefix : contentUriPrefixesToTry) {
-                        contentUri = ContentUris.withAppendedId(Uri.parse(contentUriPrefix), Long.valueOf(id));
-                        try {
-                            String[] data = getDataAndMimeType(contentUri, null, null, file.getType());
-                            if (data != null) {
-                                return data;
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    }
-
-                } else {
-                    return getDataAndMimeType(contentUri, null, null, file.getType());
-                }
+                return getDataAndMimeType(contentUri, null, null, file.getType());
             }
-
-
             // MediaProvider
             else if (isMediaDocument(uri)) {
                 final String docId = DocumentsContract.getDocumentId(uri);
@@ -457,9 +433,6 @@ public class FileProcessorThread extends Thread {
                 data[1] = guessMimeTypeFromUrl(path, type);
                 return data;
             }
-        } catch (Exception e) {
-            data[0] = uri.toString();
-            return data;
         } finally {
             if (cursor != null)
                 cursor.close();
@@ -657,7 +630,7 @@ public class FileProcessorThread extends Thread {
         this.callback = callback;
     }
 
-    protected ChosenImage ensureMaxWidthAndHeight(int maxWidth, int maxHeight, int quality, ChosenImage image, boolean shouldRotateBitmap) {
+    protected ChosenImage ensureMaxWidthAndHeight(int maxWidth, int maxHeight, int quality, ChosenImage image) {
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = true;
@@ -691,106 +664,23 @@ public class FileProcessorThread extends Thread {
 
                     Matrix matrix = new Matrix();
                     matrix.postScale((float) scaledDimension[0] / imageWidth, (float) scaledDimension[1] / imageHeight);
-                    if (shouldRotateBitmap)
-                        matrix.postRotate(getRotateAngle(originalExifInterface));
 
                     bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(),
                             bitmap.getHeight(), matrix, false);
                     bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream);
                     image.setOriginalPath(file.getAbsolutePath());
-
-                    if (!shouldRotateBitmap) { //if we rotated the image, its exif rotate angle will be 0
-                        ExifInterface resizedExifInterface = new ExifInterface(file.getAbsolutePath());
-                        resizedExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, originalRotation);
-                        resizedExifInterface.saveAttributes();
-                    }
-
+                    ExifInterface resizedExifInterface = new ExifInterface(file.getAbsolutePath());
+                    resizedExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, originalRotation);
+                    resizedExifInterface.saveAttributes();
                     image.setWidth(scaledDimension[0]);
                     image.setHeight(scaledDimension[1]);
                     stream.close();
-                    recalculateSize(image);
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace(); //TODO proper exception handling
+            e.printStackTrace();
         }
         return image;
-    }
-
-    protected void rotateBitmapByExif(ChosenImage image, int quality) {
-        FileOutputStream out = null;
-        try {
-            ExifInterface originalExifInterface = new ExifInterface(image.getOriginalPath());
-
-            int rotateAngle = getRotateAngle(originalExifInterface);
-            if (rotateAngle == 0) return;
-            BufferedInputStream scaledInputStream = null;
-            Bitmap bitmap;
-            try {
-                scaledInputStream = new BufferedInputStream(new FileInputStream(image.getOriginalPath()));
-                bitmap = BitmapFactory.decodeStream(scaledInputStream);
-            } finally {
-                if (scaledInputStream != null) scaledInputStream.close();
-            }
-            if (bitmap == null) return;
-
-            File file = new File(image.getOriginalPath());
-            try {
-                out = new FileOutputStream(file);
-                Matrix matrix = new Matrix();
-                matrix.postRotate(rotateAngle);
-                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(),
-                        bitmap.getHeight(), matrix, false);
-                bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out);
-            } catch (OutOfMemoryError error) {
-                return;
-            } finally {
-                if (out != null) try {
-                    out.close();
-                } catch (IOException ignored) {
-                }
-
-            }
-            //This basically writes old exif data to new file. Thumbnail is not preserved, sadly...
-            originalExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, String.valueOf(ExifInterface.ORIENTATION_NORMAL));
-            originalExifInterface.saveAttributes();
-            image.setOrientation(ExifInterface.ORIENTATION_NORMAL);
-            recalculateSize(image);
-        } catch (IOException e) {
-            e.printStackTrace(); //TODO proper exception handling
-        }
-    }
-
-    protected void ensureRequiredQuality(ChosenImage image, int quality) throws PickerException {
-        FileOutputStream out = null;
-        BufferedInputStream scaledInputStream = null;
-        try {
-            ExifInterface originalExifInterface = new ExifInterface(image.getOriginalPath());
-            String originalRotation = originalExifInterface.getAttribute(ExifInterface.TAG_ORIENTATION);
-            scaledInputStream = new BufferedInputStream(new FileInputStream(image.getOriginalPath()));
-            Bitmap bitmap = BitmapFactory.decodeStream(scaledInputStream);
-
-            File file = new File(image.getOriginalPath());
-            out = new FileOutputStream(file);
-            Matrix matrix = new Matrix();
-            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(),
-                    matrix, false);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out);
-            ExifInterface compressedExifInterface = new ExifInterface(file.getAbsolutePath());
-            compressedExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, originalRotation);
-            compressedExifInterface.saveAttributes();
-            recalculateSize(image);
-        } catch (IOException e) {
-            throw new PickerException(e);
-        } catch (OutOfMemoryError error) {
-            throw new PickerException("Out of memory while processing image: " + image);
-        } catch (Exception e) {
-            throw new PickerException("Error while processing image: " + image);
-        } finally {
-            close(scaledInputStream);
-            flush(out);
-            close(out);
-        }
     }
 
     protected String downScaleAndSaveImage(String image, int scale, int quality) throws PickerException {
@@ -815,7 +705,21 @@ public class FileProcessorThread extends Thread {
 
             ExifInterface exif = new ExifInterface(image);
 
-            int rotate = getRotateAngle(exif);
+            int orientation = exif.getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL);
+            int rotate = 0;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    rotate = -90;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    rotate = 180;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    rotate = 90;
+                    break;
+            }
 
             int what = w > l ? w : l;
 
@@ -868,25 +772,6 @@ public class FileProcessorThread extends Thread {
         }
 
         return null;
-    }
-
-    private int getRotateAngle(ExifInterface exif) {
-        int orientation = exif.getAttributeInt(
-                ExifInterface.TAG_ORIENTATION,
-                ExifInterface.ORIENTATION_NORMAL);
-        int rotate = 0;
-        switch (orientation) {
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                rotate = -90;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                rotate = 180;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                rotate = 90;
-                break;
-        }
-        return rotate;
     }
 
     protected String getWidthOfImage(String path) {

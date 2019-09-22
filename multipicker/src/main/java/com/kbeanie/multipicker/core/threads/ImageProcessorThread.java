@@ -16,15 +16,12 @@ import java.util.List;
 public final class ImageProcessorThread extends FileProcessorThread {
     private final static String TAG = ImageProcessorThread.class.getSimpleName();
 
-    private static final int MAX_QUALITY = 100;
-
     private boolean shouldGenerateThumbnails;
     private boolean shouldGenerateMetadata;
-    private boolean shouldRotateBitmap = false;
 
     private int maxImageWidth = -1;
     private int maxImageHeight = -1;
-    private int quality = MAX_QUALITY;
+    private int quality = 100;
 
     private ImagePickerCallback callback;
 
@@ -40,10 +37,6 @@ public final class ImageProcessorThread extends FileProcessorThread {
         this.callback = callback;
     }
 
-    public void setShouldRotateBitmap(boolean shouldRotateBitmap) {
-        this.shouldRotateBitmap = shouldRotateBitmap;
-    }
-
     @Override
     public void run() {
         super.run();
@@ -55,7 +48,6 @@ public final class ImageProcessorThread extends FileProcessorThread {
         try {
             if (callback != null) {
                 getActivityFromContext().runOnUiThread(new Runnable() {
-                    @SuppressWarnings("unchecked")
                     @Override
                     public void run() {
                         callback.onImagesChosen((List<ChosenImage>) files);
@@ -82,11 +74,7 @@ public final class ImageProcessorThread extends FileProcessorThread {
 
     private ChosenImage postProcessImage(ChosenImage image) throws PickerException {
         if (maxImageWidth != -1 && maxImageHeight != -1) {
-            image = ensureMaxWidthAndHeight(maxImageWidth, maxImageHeight, quality, image, shouldRotateBitmap);
-        } else if (shouldRotateBitmap) {
-            rotateBitmapByExif(image, quality);
-        } else if (quality < MAX_QUALITY){
-            ensureRequiredQuality(image, quality);
+            image = ensureMaxWidthAndHeight(maxImageWidth, maxImageHeight, quality, image);
         }
         LogUtils.d(TAG, "postProcessImage: " + image.getMimeType());
         if (shouldGenerateMetadata) {
